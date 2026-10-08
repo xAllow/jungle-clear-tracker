@@ -137,7 +137,7 @@ class Tracker(threading.Thread):
 
         self._status(f"Recording {me.get('championName')} live")
         region = lol_api.current_platform(self.lol_dir) or "GAME"
-        path = capture.live(api, self.data_dir, self.settings.get("capture_seconds", 300), game_id, region,
+        path = capture.live(api, self.data_dir, self.settings.get("capture_seconds", 420), game_id, region,
                             lambda: self.stopping, self.log.info)
         self.log.info("Live capture saved: %s", path.name)
         if game_id:
@@ -186,7 +186,7 @@ class Tracker(threading.Thread):
         self._status(f"Recording replay of {item['game_id']}")
         try:
             path = capture.replay(GameApi(), self.lol_dir, item["game_id"], item["riot_id"], item["match_id"],
-                                  self.data_dir, self.settings.get("capture_seconds", 300), REPLAY_SPEED,
+                                  self.data_dir, self.settings.get("capture_seconds", 420), REPLAY_SPEED,
                                   stop, self.log.info)
         except capture.CaptureError as e:
             path = None

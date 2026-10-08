@@ -202,11 +202,11 @@ class App:
         sliders.pack(fill="x", pady=(8, 0))
         self.instant_var = tk.DoubleVar(value=180)
         self.from_var = tk.DoubleVar(value=0)
-        self.to_var = tk.DoubleVar(value=300)
+        self.to_var = tk.DoubleVar(value=mapview.MAP_END)
         self.slider_label = tk.StringVar()
         for label, var in (("Instant", self.instant_var), ("From", self.from_var), ("To", self.to_var)):
             ttk.Label(sliders, text=label).pack(side="left", padx=(0, 4))
-            ttk.Scale(sliders, from_=0, to=300, variable=var, length=170,
+            ttk.Scale(sliders, from_=0, to=mapview.MAP_END, variable=var, length=170,
                       command=lambda _v: self.schedule_redraw()).pack(side="left", padx=(0, 14))
         ttk.Label(sliders, textvariable=self.slider_label, foreground="#7f8c8d").pack(side="left")
 

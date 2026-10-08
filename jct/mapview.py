@@ -11,10 +11,12 @@ from .settings import resource
 # Area covered by the minimap image (Data Dragon map11.png), in map coordinates.
 EXTENT = (-120, 14870, -120, 14980)
 FOUNTAINS = ((410, 422), (14298, 14384))
+# Length of the recordings (capture_seconds): the map covers the first 7 minutes.
+MAP_END = 420
 WINDOWS = {
     "start": "0:00 - 1:05 (before camps spawn)",
     "clear": "1:05 - end of each game's first clear",
-    "post": "end of first clear - 5:00",
+    "post": "end of first clear - 7:00",
 }
 WIN_COLOR, LOSS_COLOR, UNKNOWN_COLOR = "#2ecc71", "#e74c3c", "#95a5a6"
 
@@ -30,7 +32,7 @@ def minimap() -> np.ndarray:
 
 def window_for(route: dict[str, Any], window: str, custom: tuple[float, float]) -> tuple[float, float]:
     end = route.get("clear_end") or 180
-    return {"start": (0, 65), "clear": (65, end), "post": (end, 300)}.get(window, custom)
+    return {"start": (0, 65), "clear": (65, end), "post": (end, MAP_END)}.get(window, custom)
 
 
 def position_at(track: list, t: float, margin: float = 4.0) -> tuple[float, float] | None:

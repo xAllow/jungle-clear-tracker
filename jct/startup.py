@@ -18,7 +18,7 @@ def _target() -> tuple[str, str, str]:
         return sys.executable, "--background", str(Path(sys.executable).parent)
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     project = Path(__file__).resolve().parent.parent
-    return str(pythonw if pythonw.exists() else sys.executable), "-m jct --background", str(project)
+    return str(pythonw if pythonw.exists() else sys.executable), f'"{project / "run.py"}" --background', str(project)
 
 
 def is_enabled(folder: Path | None = None) -> bool:

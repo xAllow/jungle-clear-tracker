@@ -15,8 +15,8 @@ DEFAULTS: dict[str, Any] = {
     "data_dir": str(Path.home() / "Documents" / APP_NAME),
     # League of Legends install folder; empty = detect automatically.
     "lol_dir": "",
-    # Seconds of each game to record (first clear, scuttles and first back fit in 5 minutes).
-    "capture_seconds": 300,
+    # Seconds of each game to record (first clear, scuttles, first back and early ganks fit in 7 minutes).
+    "capture_seconds": 420,
     # Also record positions from the replay after each game (needed for camp order, scuttles and the map).
     "replay": True,
     # Seconds out of queue before opening a replay (you often re-queue right after a game).
@@ -40,8 +40,10 @@ def load() -> dict[str, Any]:
 
 
 def save(settings: dict[str, Any]) -> None:
+    """Only values that differ from the defaults are stored, so new defaults reach existing users."""
     APP_DIR.mkdir(parents=True, exist_ok=True)
-    SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    changed = {k: v for k, v in settings.items() if DEFAULTS.get(k) != v}
+    SETTINGS_FILE.write_text(json.dumps(changed, indent=2), encoding="utf-8")
 
 
 def load_patch_data() -> dict[str, Any]:
