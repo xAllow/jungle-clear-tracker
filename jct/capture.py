@@ -103,6 +103,19 @@ def _save_events(api: GameApi, f: TextIO) -> None:
         _write(f, {"type": "events", "events": events.get("Events", [])})
 
 
+def game_end_result(api: GameApi) -> bool | None:
+    """True/False once the game has ended (GameEnd event, from the active player's point of view)."""
+    events = (api.get("/liveclientdata/eventdata") or {}).get("Events", [])
+    end = next((e for e in events if e.get("EventName") == "GameEnd"), None)
+    return None if end is None else end.get("Result") == "Win"
+
+
+def append_result(path: Path, win: bool) -> None:
+    """Add the game's result to a live capture (read by the analysis before asking the client)."""
+    with open(path, "a", encoding="utf-8") as f:
+        _write(f, {"type": "result", "win": win})
+
+
 def live(api: GameApi, out_dir: Path, max_seconds: float, game_id: int | None, region: str,
          stop: Stop, log: Log) -> Path:
     """Record the running game until `max_seconds` of game time, the end of the game or `stop()`."""

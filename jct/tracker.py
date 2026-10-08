@@ -38,6 +38,8 @@ class Tracker(threading.Thread):
         self.data_dir = Path(settings["data_dir"])
         self.lol_dir = lol_api.find_lol_dir(settings.get("lol_dir", ""))
         self.seen: set = set()
+        # Recorded games still in progress, whose result (GameEnd event) is not known yet.
+        self.awaiting_result: dict[int, Path] = {}
 
     # ----------------------------------------------------------------------------------------- control
     def stop(self) -> None:
@@ -95,7 +97,8 @@ class Tracker(threading.Thread):
                     last_status = status
             except Exception:
                 self.log.exception("Unexpected error; the tracker keeps running.")
-            self._halt.wait(5)
+            # The end-of-game screen only lasts a few seconds: look more often while waiting for it.
+            self._halt.wait(2 if self.awaiting_result else 5)
         self._status("Stopped")
         self.log.info("Tracker stopped.")
 
@@ -108,6 +111,15 @@ class Tracker(threading.Thread):
             return "Game loading"
         game_id = lol_api.current_game_id(self.lol_dir)
         if game_id in self.seen:
+            # Recorded game still going on: wait for its GameEnd event to keep the result in the capture.
+            path = self.awaiting_result.get(game_id)
+            if path:
+                win = capture.game_end_result(api)
+                if win is not None:
+                    capture.append_result(path, win)
+                    del self.awaiting_result[game_id]
+                    self.log.info("Game %s finished: %s.", game_id, "win" if win else "loss")
+                return "In game (recorded, waiting for the end)"
             return "In game (already handled)"
         self.seen.add(game_id)
         riot_id = api.get("/liveclientdata/activeplayername") or ""
@@ -128,6 +140,8 @@ class Tracker(threading.Thread):
         path = capture.live(api, self.data_dir, self.settings.get("capture_seconds", 300), game_id, region,
                             lambda: self.stopping, self.log.info)
         self.log.info("Live capture saved: %s", path.name)
+        if game_id:
+            self.awaiting_result[game_id] = path
         if game_id and self.settings.get("replay", True):
             pending = self._pending()
             pending.append({"game_id": game_id, "match_id": f"{region}_{game_id}", "riot_id": riot_id,

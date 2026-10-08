@@ -42,7 +42,7 @@ def mmss(seconds: float | None) -> str:
 # --------------------------------------------------------------------------------------------- loading
 
 def load(path: Path) -> dict[str, Any]:
-    header, samples, events, positions = {}, [], [], []
+    header, samples, events, positions, result = {}, [], [], [], None
     with open(path, encoding="utf-8") as f:
         for line in f:
             row = json.loads(line)
@@ -55,11 +55,14 @@ def load(path: Path) -> dict[str, Any]:
                 positions.append((row["t"], row["p"]))
             elif kind == "events":
                 events = row["events"]
+            elif kind == "result":  # GameEnd, appended by the tracker when the game finished
+                result = row.get("win")
     return {
         "file": path.name,
         "header": header,
         "samples": samples,
         "events": events,
+        "result": result,
         "positions": positions,
         "order": [p.get("riot_id") for p in header.get("players", [])],
         "positions_from": path.name if positions else None,
@@ -413,6 +416,7 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
         "scuttles": scuttles,
         "levels": levels,
         "incidents": incid,
+        "result": capture.get("result"),
     }
 
 
@@ -450,9 +454,13 @@ def summary(r: dict[str, Any], lol_dir: Path, p: dict[str, Any], previous: dict[
     """Flat per-game record (summaries.json / summaries.csv)."""
     h, c = r["header"], r["clear"]
     order, scuttles = c.get("order"), r.get("scuttles")
-    win, queue = game_result(lol_dir, h.get("match_id"))
-    if win is None and previous:  # the client may be closed now: keep what was known
-        win, queue = previous.get("win"), previous.get("queue")
+    # Result: the GameEnd event saved during the game; otherwise the client's match history;
+    # otherwise what an earlier analysis knew (the client may be closed now).
+    history_win, queue = game_result(lol_dir, h.get("match_id"))
+    win = r.get("result") if r.get("result") is not None else history_win
+    if previous:
+        win = previous.get("win") if win is None else win
+        queue = previous.get("queue") if queue is None else queue
     end, start = c.get("end"), c.get("start")
     return {
         "file": r["file"],

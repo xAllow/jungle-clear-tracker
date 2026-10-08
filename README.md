@@ -19,7 +19,7 @@ It combines two official local APIs of the game, because each one has what the o
 | **Live game** (Live Client Data API) | yes: every monster kill is a jump in your gold | no |
 | **Replay of the same game** (Replay API) | no gold in replays | yes |
 
-1. **During the game** (only if you have Smite), it records your gold, CS, level and items for the first 5 minutes.
+1. **During the game** (only if you have Smite), it records your gold, CS, level and items for the first 5 minutes, and keeps the game's result when it ends (`GameEnd` event). If it misses it, the result is taken from the client's match history.
 2. **After the game**, once you have been out of queue for 30 s, it asks the client to open the replay, plays the first 5 minutes at x4 (~1.5 min) with a fixed top-down camera and records every champion's position, then closes the replay. If you queue up meanwhile, it stops, closes the replay and retries later.
 3. It joins both by game time: each gold jump is assigned to the camp you were working on.
 
