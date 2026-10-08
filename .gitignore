@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.spec
+# Your own recordings never belong in the repository.
+captures/
+summaries.json
+summaries.csv
+pending_replays.json
+tracker.log
