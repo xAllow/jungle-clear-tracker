@@ -28,9 +28,19 @@ Exact camp timings, camp order, scuttles and a map of your first 7 minutes, for 
 
 ## How it works
 
-| During the game | After the game |
-|---|---|
-| If you have Smite, it records your **gold** for the first 7 minutes: every monster kill is a gold jump, so camp timings are exact. | When you are out of queue, it opens the **replay**, pins the camera above the map and records every champion's **position** (~2 min). If you queue up, it stops and retries later. |
+What happens after you press **Start** (the status bar always shows the current step):
+
+1. **Waits for the League client** and checks it every few seconds.
+2. **A game starts.** Once it loads, it checks three things: you are playing (not spectating), you have **Smite** and the game is not past 1:30. If any fails, it writes why in the Log and does nothing more with that game.
+3. **Records live up to 7:00 of game time.** Several times per second: your **gold**, CS, level, deaths and items, and the enemy jungler's CS and level. Every monster kill is a gold jump, so camp timings are exact. At 7:00 it stops recording; the game is not touched.
+4. **Waits for the end of the game** to save the result (win or loss).
+5. **Opens the replay** when you have been out of queue for 10 s: downloads it, opens it, pins the camera above the map and plays 0:00–7:00 at x4 (~2 min), recording every champion's **position**.
+   - If you queue up or enter champion select meanwhile, it stops, closes the replay and retries later (up to 3 times, also after restarting the app).
+   - If the replay is not available, the game keeps the live data (times, but no route or map).
+6. **Closes the replay**. Only if a replay is open and you are not in a game.
+7. **Analyzes the game**: first clear time, camp order, scuttles, status and result. The **Games** and **Map** tabs update and the row is added to `summaries.csv`.
+
+From the end of the game to the result: about 2–3 minutes, if you stay out of queue.
 
 Only the game's official local APIs are used. Nothing is read from memory or network traffic, and nothing is shown during your games.
 

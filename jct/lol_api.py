@@ -156,11 +156,18 @@ def current_riot_id(lol_dir: Path) -> str | None:
 def current_platform(lol_dir: Path) -> str | None:
     """Platform of the account (EUW1, NA1...), used to build match ids like EUW1_123456."""
     lcu = client(lol_dir)
-    try:
-        platform = lcu.get("/lol-platform-config/v1/namespaces/LoginDataPacket/platformId") if lcu else None
-    except requests.RequestException:
+    if not lcu:
         return None
-    return platform if isinstance(platform, str) and platform else None
+    # The LoginDataPacket namespace that used to hold it no longer exists (2026): ask the login session,
+    # then the chat profile.
+    for path, key in (("/lol-rso-auth/v1/authorization", "currentPlatformId"), ("/lol-chat/v1/me", "platformId")):
+        try:
+            platform = (lcu.get(path) or {}).get(key)
+        except (requests.RequestException, ValueError, AttributeError):
+            continue
+        if isinstance(platform, str) and platform:
+            return platform
+    return None
 
 
 def current_game_id(lol_dir: Path) -> int | None:

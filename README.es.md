@@ -28,9 +28,19 @@ Tiempo exacto de cada campamento, orden, scuttles y un mapa de tus primeros 7 mi
 
 ## Cómo funciona
 
-| Durante la partida | Después de la partida |
-|---|---|
-| Si llevas Castigo, graba tu **oro** de los primeros 7 minutos: cada monstruo es un salto de oro, así que los tiempos son exactos. | Cuando sales de cola, abre el **replay**, fija la cámara sobre el mapa y graba la **posición** de cada campeón (~2 min). Si entras en cola, para y lo reintenta más tarde. |
+Lo que pasa al pulsar **Start** (la barra de estado muestra siempre el paso actual):
+
+1. **Espera al cliente de LoL** y lo mira cada pocos segundos.
+2. **Empieza una partida.** Al cargar comprueba tres cosas: que juegas tú (no estás de espectador), que llevas **Castigo** y que la partida no pasa de 1:30. Si falla alguna, apunta el motivo en el Log y no hace nada más con esa partida.
+3. **Graba en directo hasta el minuto 7.** Varias veces por segundo: tu **oro**, CS, nivel, muertes y objetos, y el CS y nivel del jungla rival. Cada monstruo es un salto de oro, así que los tiempos son exactos. En el 7:00 deja de grabar; la partida no se toca.
+4. **Espera al final de la partida** para guardar el resultado (victoria o derrota).
+5. **Abre el replay** cuando llevas 10 s fuera de cola: lo descarga, lo abre, fija la cámara sobre el mapa y lo reproduce de 0:00 a 7:00 a x4 (~2 min), grabando la **posición** de cada campeón.
+   - Si entras en cola o en selección mientras tanto, para, cierra el replay y lo reintenta más tarde (hasta 3 veces, también tras reiniciar la app).
+   - Si el replay no está disponible, la partida se queda con los datos en directo (tiempos, pero sin ruta ni mapa).
+6. **Cierra el replay**. Solo si hay un replay abierto y no estás en partida.
+7. **Analiza la partida**: tiempo del primer clear, orden de campamentos, scuttles, estado y resultado. Se actualizan las pestañas **Games** y **Map** y se añade la fila a `summaries.csv`.
+
+Desde que acaba la partida hasta tener el resultado: unos 2–3 minutos, si te quedas fuera de cola.
 
 Solo usa las APIs locales oficiales del juego. No lee memoria ni tráfico de red, y no muestra nada durante tus partidas.
 
