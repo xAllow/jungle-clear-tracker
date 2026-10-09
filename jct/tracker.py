@@ -84,7 +84,7 @@ class Tracker(threading.Thread):
                     free_since = free_since or time.time()
                     pending = self._pending()
                     if pending and self.settings.get("replay", True):
-                        if time.time() - free_since >= self.settings.get("idle_before_replay", 30):
+                        if time.time() - free_since >= self.settings.get("idle_before_replay", 10):
                             self._handle_replay(pending)
                         status = f"{len(pending)} replay(s) pending"
                     else:

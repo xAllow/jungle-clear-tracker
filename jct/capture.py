@@ -232,12 +232,13 @@ def replay(api: GameApi, lol_dir: Path, game_id: int, riot_id: str, match_id: st
     width, height = lol_api.game_resolution(lol_dir)
 
     # Jump to 0:00 paused and let the replay rebuild the scene: right after a seek, positions are wrong.
+    # A short margin is enough at 0:00, when nobody has left the fountain yet.
     api.post("/replay/playback", {"time": 0.0, "paused": True})
     for _ in range(40):
         time.sleep(0.5)
         if not (api.get("/replay/playback") or {}).get("seeking", True):
             break
-    time.sleep(2.5)
+    time.sleep(0.5)
     api.post("/replay/render", lol_api.TOP_DOWN_CAMERA)
     api.post("/replay/playback", {"paused": False, "speed": speed})
     length = (api.get("/replay/playback") or {}).get("length", 1e9)
@@ -293,7 +294,10 @@ def close_replay(lol_dir: Path) -> bool:
         return False
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.run(["taskkill", "/IM", lol_api.GAME_PROCESS], capture_output=True, creationflags=flags)
-    time.sleep(8)
+    for _ in range(16):  # up to 8 s to close gracefully
+        time.sleep(0.5)
+        if GameApi().get("/replay/playback") is None:
+            break
     in_game = lol_api.client_phase(lol_dir) in ("GameStart", "InProgress", "Reconnect")
     if not in_game and GameApi().get("/replay/playback") is not None:
         subprocess.run(["taskkill", "/F", "/IM", lol_api.GAME_PROCESS], capture_output=True, creationflags=flags)

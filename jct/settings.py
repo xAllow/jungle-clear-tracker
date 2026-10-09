@@ -20,7 +20,7 @@ DEFAULTS: dict[str, Any] = {
     # Also record positions from the replay after each game (needed for camp order, scuttles and the map).
     "replay": True,
     # Seconds out of queue before opening a replay (you often re-queue right after a game).
-    "idle_before_replay": 30,
+    "idle_before_replay": 10,
     "first_run_done": False,
 }
 
