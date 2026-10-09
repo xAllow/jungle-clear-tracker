@@ -117,7 +117,16 @@ def gold_jumps(samples: list[dict[str, Any]], p: dict[str, Any]) -> list[tuple[f
             if extra >= p["min_gold_jump"] and s.get("items") == prev.get("items"):
                 out.append((s["t"], round(extra)))
         prev = s
-    return out
+    # A small extra (+20) can arrive half a second after a big monster kill (blue, gromp, red...): it belongs
+    # to that kill. Counted apart, the group would look like several monsters and rule out blue and gromp.
+    merged: list[tuple[float, float]] = []
+    for t, n in out:
+        if (merged and n <= p.get("bonus_gold_max", 25) and merged[-1][1] >= p["big_jump_gold"]
+                and t - merged[-1][0] <= p.get("bonus_gold_window", 1.0)):
+            merged[-1] = (merged[-1][0], merged[-1][1] + n)
+        else:
+            merged.append((t, n))
+    return merged
 
 
 def group_kills(kills: list[tuple[float, float]], gap: float) -> list[dict[str, Any]]:
