@@ -328,7 +328,9 @@ class App:
                 route += " (approx.)"
             self.games_tree.insert("", "end", values=(
                 (r.get("date") or "").replace("T", " ")[:16], r.get("champion") or "-", r.get("enemy_jungler") or "-",
-                (r.get("side") or "-").title(), analysis.STATUS_TEXT.get(r.get("status"), r.get("status") or "-"),
+                (r.get("side") or "-").title(),
+                analysis.STATUS_TEXT.get(r.get("status"), r.get("status") or "-")
+                + (f" ({'before camps' if r.get('fight') == 'before' else 'mid-clear'})" if r.get("fight") else ""),
                 r.get("clear_end_mmss") or "-", route,
                 "-" if r.get("early_scuttles") is None else r["early_scuttles"], result,
             ))

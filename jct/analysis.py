@@ -16,6 +16,7 @@ from . import lol_api
 
 STATUS_TEXT = {
     "clean": "Clean",
+    "clean_fight": "Clean, with a fight",
     "interrupted": "Interrupted",
     "possible_invade": "Possible invade",
     "incomplete": "Incomplete",
@@ -281,15 +282,19 @@ def name_camps(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[st
 # ------------------------------------------------------------------------------------------ the clear
 
 def first_clear(groups: list[dict[str, Any]], incid: list[dict], end_gap: float) -> tuple[list, str | None, float | None]:
-    """Camps up to the first incident or long pause. Returns (groups, reason it stopped, instant)."""
+    """Camps up to the first incident or long pause. Returns (groups, reason it stopped, instant).
+
+    A fight (your kill or assist) does not stop the clear: if you neither die nor recall, it goes on with the
+    camps after it. If the clear ends up short, `clear_status` marks it as interrupted by the fight."""
     if not groups:
         return [], None, None
-    before = [i for i in incid if i["t"] < groups[0]["start"]]
+    stops = [i for i in incid if i["kind"] != "fight"]
+    before = [i for i in stops if i["t"] < groups[0]["start"]]
     if before:
         return [], before[0]["kind"], before[0]["t"]
     clear = [groups[0]]
     for g in groups[1:]:
-        between = [i for i in incid if clear[-1]["end"] <= i["t"] < g["start"]]
+        between = [i for i in stops if clear[-1]["end"] <= i["t"] < g["start"]]
         if between:
             return clear, between[0]["kind"], between[0]["t"]
         if g["start"] - clear[-1]["end"] > end_gap:
@@ -355,7 +360,10 @@ def enemy_ahead(levels: dict[str, float], enemy_levels: dict[str, float], margin
 
 
 def clear_status(source: str, reason: str | None, t: float | None, incid: list[dict], levels: dict, enemy_levels: dict,
-                 complete: bool, first_sample: float) -> dict[str, Any]:
+                 complete: bool, first_sample: float, clear: list[dict] | None = None,
+                 fights: list[dict] | None = None) -> dict[str, Any]:
+    """`fights`: your kills/assists before the clear ended (e.g. killing whoever invaded you)."""
+    fights = fights or []
     if first_sample > 90:
         return {"status": "no_data", "reason": "late_capture", "t": first_sample}
     if source == "milestones":
@@ -364,10 +372,17 @@ def clear_status(source: str, reason: str | None, t: float | None, incid: list[d
         if early:
             return {"status": "interrupted", "reason": early[0]["kind"], "t": early[0]["t"]}
         return {"status": "no_camps", "reason": None, "t": None}
+    if complete and fights:
+        # A fight before the first camp (an invade or a level 1 fight) or in the middle of the clear.
+        when = "before" if clear and fights[0]["t"] < clear[0]["start"] else "during"
+        return {"status": "clean_fight", "reason": reason, "t": t, "fight": when, "fight_t": fights[0]["t"]}
     if complete:
         return {"status": "clean", "reason": reason, "t": t}
-    if reason in ("death", "fight"):
+    if reason == "death":
         return {"status": "interrupted", "reason": reason, "t": t}
+    if fights or reason == "fight":
+        # You fought and the clear was left short: the fight is what spoiled it.
+        return {"status": "interrupted", "reason": "fight", "t": fights[0]["t"] if fights else t}
     if reason == "pause":
         # Going to a stolen camp and finding it empty looks like a long pause.
         return {"status": "possible_invade" if enemy_ahead(levels, enemy_levels) else "interrupted", "reason": reason, "t": t}
@@ -404,6 +419,7 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
     order, reliable = camp_order(clear) if capture["positions"] else (None, False)
     amount = sum(g["amount"] for g in clear)
     complete = amount >= p["min_clear_gold"] if source == "gold" else len(clear) >= 5
+    clear_fights = [i for i in incid if i["kind"] == "fight" and clear and i["t"] < clear[-1]["end"]]
     levels, enemy_levels = milestones(samples, "level"), milestones(samples, "rival_level")
     return {
         "file": capture["file"],
@@ -420,7 +436,7 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
             "reliable": reliable,
             "back": back,
             **clear_status(source, reason, t_end, incid, levels, enemy_levels, complete,
-                           samples[0]["t"] if samples else 0.0),
+                           samples[0]["t"] if samples else 0.0, clear, clear_fights),
         },
         "scuttles": scuttles,
         "levels": levels,
@@ -480,6 +496,9 @@ def summary(r: dict[str, Any], lol_dir: Path, p: dict[str, Any], previous: dict[
         "side": {"ORDER": "blue", "CHAOS": "red"}.get(h.get("team")),
         "status": c.get("status"),
         "reason": c.get("reason"),
+        # Only for clean_fight: "before" (the first camp) or "during", and the second of the fight.
+        "fight": c.get("fight"),
+        "fight_t": round(c["fight_t"], 1) if c.get("fight_t") is not None else None,
         "clear_end": round(end, 1) if end is not None else None,
         "clear_end_mmss": mmss(end) if end is not None else None,
         "clear_duration": round(end - start, 1) if end is not None and start is not None else None,
@@ -503,8 +522,12 @@ def save_summaries(rows: list[dict[str, Any]], data_dir: Path) -> None:
     rows = sorted(rows, key=lambda x: x.get("date") or "")
     (Path(data_dir) / "summaries.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     if rows:
+        # Summaries written by older versions may lack newer columns: use every column seen, newest order first.
+        fields: list[str] = []
+        for row in reversed(rows):
+            fields += [k for k in row if k not in fields]
         with open(Path(data_dir) / "summaries.csv", "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer = csv.DictWriter(f, fieldnames=fields, restval="")
             writer.writeheader()
             writer.writerows(rows)
 
