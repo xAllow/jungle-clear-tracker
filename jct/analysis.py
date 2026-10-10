@@ -251,6 +251,27 @@ def name_camps(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[st
                 # Fixed order inside the step, so "Krugs + Red" is the same route in every game.
                 g["camp"] = " + ".join(sorted(own(n) for _, n in nearest))
                 continue
+        if len(big) == 1 and len(g["jumps"]) > 1 and sum(g["jumps"]) - big[0] >= p["other_camp_min_gold"]:
+            # One single-monster camp plus loose gold from another camp (krugs come as many small pieces, never
+            # as one big jump): two camps died together, e.g. krugs + red drained at once. The single monster is
+            # the one closest to your path; the other is where you spent the most time among the rest.
+            singles = tuple(p["single_monster_camps"])
+            unique = min(
+                (min(math.hypot(x - cx, y - cy) for x, y in path), name)
+                for name, (cx, cy) in camps.items() if name.startswith(singles)
+            )
+            rest = {n: xy for n, xy in camps.items() if not n.startswith("Scuttle") and not n.startswith(singles)}
+            worked: dict[str, float] = {}
+            for (t, (x, y)), (t2, _) in zip(series, series[1:] + [(g["end"], None)]):
+                for name, (cx, cy) in rest.items():
+                    if math.hypot(x - cx, y - cy) <= p["camp_work_radius"]:
+                        worked[name] = worked.get(name, 0.0) + max(t2 - t, 0.0)
+            if worked and unique[0] <= p["max_camp_distance"]:
+                other = max(worked.items(), key=lambda kv: kv[1])
+                if other[1] >= p["min_work_seconds"]:
+                    g["distance"] = round(unique[0])
+                    g["camp"] = " + ".join(sorted(own(n) for n in (unique[1], other[0])))
+                    continue
         # Blue, red and gromp are one monster worth a lot of gold: a group of several kills, or of one
         # small kill, cannot be any of them (it will be wolves, raptors or krugs).
         single = len(g["jumps"]) == 1 and g["jumps"][0] >= p["big_jump_gold"]

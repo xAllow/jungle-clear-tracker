@@ -23,6 +23,8 @@
   "single_monster_camps": ["Blue", "Red", "Gromp"],
   "big_jump_camps": ["Blue", "Red", "Gromp", "Krugs"],
   "big_jump_gold": 60,
+  "_other_camp": "Krugs come as many small jumps. A single-monster jump plus at least this much loose gold means a second camp died at the same time (krugs + red).",
+  "other_camp_min_gold": 70,
   "_bonus_gold": "A small extra jump (<= bonus_gold_max) arriving within bonus_gold_window s of a big kill is added to it.",
   "bonus_gold_max": 25,
   "bonus_gold_window": 1.0,
