@@ -219,8 +219,28 @@ def name_camps(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[st
             name = name.replace(f"({team})", "(own)")
         return name.replace("(ORDER)", "(enemy)").replace("(CHAOS)", "(enemy)")
 
+    singles = p["single_monster_gold"]  # gold of each single-monster camp (wiki)
+    lo, hi = p["single_monster_gold_range"]
+
+    def possible_bases(g: dict[str, Any]) -> set[str]:
+        if len(g["jumps"]) != 1 or g["jumps"][0] < p["big_jump_gold"]:
+            return set(singles)
+        return {b for b, v in singles.items() if v + lo <= g["jumps"][0] <= v + hi} or set(singles)
+
+    # By gold: a jump that can only be one single monster reserves it (a +79 is gromp, not blue), and no other
+    # nearby jump may carry that name, even if you spent more time next to it (a drain reaches two camps).
+    possible = [possible_bases(g) for g in groups]
+    reserved = [(i, next(iter(b))) for i, b in enumerate(possible) if len(b) == 1]
+
+    def allowed(i: int) -> set[str]:
+        ok = set(possible[i])
+        for j, base in reserved:
+            if j != i and abs(groups[j]["start"] - groups[i]["start"]) < p["single_monster_respawn"] and len(ok) > 1:
+                ok.discard(base)
+        return ok
+
     previous_end = None
-    for g in groups:
+    for gi, g in enumerate(groups):
         since = max(previous_end or 0.0, g["start"] - window)
         previous_end = g["end"]
         series = [(t, pts[index]) for t, pts in capture["positions"] if since <= t <= g["end"] and pts[index]]
@@ -275,9 +295,11 @@ def name_camps(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[st
         # Blue, red and gromp are one monster worth a lot of gold: a group of several kills, or of one
         # small kill, cannot be any of them (it will be wolves, raptors or krugs).
         single = len(g["jumps"]) == 1 and g["jumps"][0] >= p["big_jump_gold"]
+        bases_ok = allowed(gi) if single else set()
         candidates = {
             n: xy for n, xy in camps.items()
-            if not n.startswith("Scuttle") and (single or not n.startswith(tuple(p["single_monster_camps"])))
+            if not n.startswith("Scuttle")
+            and (not n.startswith(tuple(p["single_monster_camps"])) or (single and n.startswith(tuple(bases_ok))))
         }
         # Time spent within working distance of each camp (attack range / drain).
         time_near: dict[str, float] = {}
