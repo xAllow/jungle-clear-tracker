@@ -34,6 +34,7 @@
   "bonus_gold_window": 1.0,
   "passive_gold_per_second": 2.1,
   "min_gold_jump": 12,
+  "first_kill_possible_seconds": 30,
   "_grouping": "Kills closer than group_gap_seconds are one step of the clear (camps done at the same time, e.g. Krugs + Red).",
   "group_gap_seconds": 10,
   "clear_end_gap_seconds": 45,

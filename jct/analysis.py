@@ -115,7 +115,9 @@ def gold_jumps(samples: list[dict[str, Any]], p: dict[str, Any]) -> list[tuple[f
         if prev is not None:
             dt = max(s["t"] - prev["t"], 0.0)
             extra = s["gold"] - prev["gold"] - p["passive_gold_per_second"] * dt
-            if extra >= p["min_gold_jump"] and s.get("items") == prev.get("items"):
+            # No monster can die before the first camps spawn (1:07): the 500 starting gold arrives as a jump at ~0:00.
+            if (extra >= p["min_gold_jump"] and s["t"] >= p["first_kill_possible_seconds"]
+                    and s.get("items") == prev.get("items")):
                 out.append((s["t"], round(extra)))
         prev = s
     # A small extra (+20) can arrive half a second after a big monster kill (blue, gromp, red...): it belongs
@@ -139,8 +141,9 @@ def group_kills(kills: list[tuple[float, float]], gap: float) -> list[dict[str, 
             g["end"] = t
             g["amount"] += n
             g["jumps"].append(n)
+            g["times"].append(t)
         else:
-            groups.append({"start": t, "end": t, "amount": n, "jumps": [n]})
+            groups.append({"start": t, "end": t, "amount": n, "jumps": [n], "times": [t]})
     for prev, cur in zip(groups, groups[1:]):
         cur["since_previous"] = round(cur["end"] - prev["end"], 1)
     return groups
@@ -200,6 +203,49 @@ def scuttle_side(group: dict[str, Any], points: list[list[int]], p: dict[str, An
     if not in_river or any(math.hypot(x - px, y - py) < 700 for px, py in pits):
         return None
     return "top" if x < y else "bottom"
+
+
+def in_river(point: tuple[float, float], p: dict[str, Any]) -> bool:
+    x, y = point
+    if abs(x + y - p["river_sum"]) / math.sqrt(2) > p["river_width"]:
+        return False
+    pits = (p["camps"]["Dragon"], p["camps"]["Baron / Herald / Grubs"])
+    return not any(math.hypot(x - px, y - py) < 700 for px, py in pits)
+
+
+def split_scuttles(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[str, Any]) -> list[dict[str, Any]]:
+    """Take the scuttle's jump out of a group that also holds another camp's kills.
+
+    A camp (blue) and a scuttle dying less than `group_gap_seconds` apart were grouped, and the whole group
+    became "Scuttle": the camp vanished from the route. Each jump is judged by where you were at that instant:
+    in the river and away from the pits it is the scuttle."""
+    riot_id = capture["header"].get("riot_id")
+    if not capture["positions"] or riot_id not in capture["order"]:
+        return groups
+    index = capture["order"].index(riot_id)
+    out: list[dict[str, Any]] = []
+    for g in groups:
+        times, jumps = g.get("times"), g["jumps"]
+        if not times or len(jumps) < 2 or g["end"] < p["scuttle_spawn_seconds"]:
+            out.append(g)
+            continue
+        flags = []
+        for t, n in zip(times, jumps):
+            point = position_at(capture["positions"], index, t) if t >= p["scuttle_spawn_seconds"] and n >= p["scuttle_min_gold"] else None
+            flags.append(bool(point) and in_river(point, p))
+        if not any(flags) or all(flags):
+            out.append(g)
+            continue
+        rest = [(t, n) for t, n, f in zip(times, jumps, flags) if not f]
+        out.append({"start": rest[0][0], "end": rest[-1][0], "amount": sum(n for _, n in rest),
+                    "jumps": [n for _, n in rest], "times": [t for t, _ in rest]})
+        for t, n, f in zip(times, jumps, flags):
+            if f:
+                out.append({"start": t, "end": t, "amount": n, "jumps": [n], "times": [t]})
+    out.sort(key=lambda g: g["start"])
+    for prev, cur in zip(out, out[1:]):
+        cur["since_previous"] = round(cur["end"] - prev["end"], 1)
+    return out
 
 
 def name_camps(groups: list[dict[str, Any]], capture: dict[str, Any], p: dict[str, Any], window: float = 30.0) -> None:
@@ -449,7 +495,7 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
     else:
         source, kills = "milestones", []  # replay without a live capture: only level/CS milestones
 
-    groups = group_kills(kills, p["group_gap_seconds"])
+    groups = split_scuttles(group_kills(kills, p["group_gap_seconds"]), capture, p)
     name_camps(groups, capture, p)
     clear, reason, t_end = first_clear([g for g in groups if not g.get("scuttle")], incid, p["clear_end_gap_seconds"])
     clear, cut = cut_when_complete(clear, p["own_camps"])
@@ -569,10 +615,15 @@ def save_summaries(rows: list[dict[str, Any]], data_dir: Path) -> None:
         fields: list[str] = []
         for row in reversed(rows):
             fields += [k for k in row if k not in fields]
-        with open(Path(data_dir) / "summaries.csv", "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fields, restval="")
-            writer.writeheader()
-            writer.writerows(rows)
+        try:
+            with open(Path(data_dir) / "summaries.csv", "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fields, restval="")
+                writer.writeheader()
+                writer.writerows(rows)
+        except PermissionError:
+            # Open in Excel: Windows will not let it be written. summaries.json is already saved and the CSV is
+            # rewritten in full on the next analysis, so this must not break the game that is being analyzed.
+            pass
 
 
 def load_summaries(data_dir: Path) -> list[dict[str, Any]]:
