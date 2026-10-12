@@ -8,6 +8,7 @@ Exact camp timings, camp order, scuttles and a map of your first 7 minutes, for 
 ![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
+[![Downloads](https://img.shields.io/github/downloads/xAllow/jungle-clear-tracker/total?label=Downloads&color=blue)](https://github.com/xAllow/jungle-clear-tracker/releases)
 
 **English** · [Español](README.es.md)
 
