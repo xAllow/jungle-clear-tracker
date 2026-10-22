@@ -1,5 +1,5 @@
 {
-  "patch": "16.20",
+  "patch": "16.21",
   "_camps": "Centre of each camp's locators in map11.bin.json (CommunityDragon, game/data/maps/shipping/map11). x to the right, y up.",
   "camps": {
     "Blue (ORDER)": [3746, 7948],
@@ -24,7 +24,11 @@
   "big_jump_camps": ["Blue", "Red", "Gromp", "Krugs"],
   "big_jump_gold": 60,
   "_single_gold": "Gold of each single-monster camp (LoL wiki, patch 13.5+; the measured jump is 1 less after the passive gold is subtracted). A jump fits a camp if it is within single_monster_gold_range of it (the small extra after a kill, or the passive gold). Camps total (wiki): wolves 85, raptors 75, krugs 109 (4 + 2 minis, as small jumps).",
-  "single_monster_gold": {"Blue": 90, "Red": 90, "Gromp": 80},
+  "single_monster_gold": {
+    "Blue": 90,
+    "Red": 90,
+    "Gromp": 80
+  },
   "single_monster_gold_range": [-8, 32],
   "single_monster_respawn": 100,
   "_other_camp": "Krugs come as many small jumps. A single-monster jump plus at least this much loose gold means a second camp died at the same time (krugs + red).",
@@ -35,8 +39,14 @@
   "passive_gold_per_second": 2.1,
   "min_gold_jump": 12,
   "first_kill_possible_seconds": 30,
+  "_items": "Items that are used up or given for free (potions, control ward, cookie and, since 16.21, the elixirs that appear mid-clear). They are not purchases and do not cancel a kill's gold.",
+  "consumable_items": [2003, 2010, 2031, 2033, 2055, 2138, 2139, 2140, 2150, 2151, 2152],
+  "min_purchase_gold": 20,
   "_grouping": "Kills closer than group_gap_seconds are one step of the clear (camps done at the same time, e.g. Krugs + Red).",
   "group_gap_seconds": 10,
+  "_location_change": "Two kills more than location_change_distance apart and more than location_change_gap s apart are different camps even within group_gap_seconds.",
+  "location_change_distance": 1300,
+  "location_change_gap": 4,
   "clear_end_gap_seconds": 45,
   "min_clear_gold": 450,
   "own_camps": 6,
@@ -49,5 +59,7 @@
   "scuttle_min_gold": 50,
   "river_sum": 14800,
   "river_width": 1100,
-  "early_game_seconds": 420
+  "early_game_seconds": 420,
+  "_replay": "A replay capture with a position gap longer than max_position_gap s in its first 5 minutes is retried.",
+  "max_position_gap": 12
 }

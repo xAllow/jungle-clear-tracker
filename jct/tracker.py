@@ -187,7 +187,7 @@ class Tracker(threading.Thread):
         try:
             path = capture.replay(GameApi(), self.lol_dir, item["game_id"], item["riot_id"], item["match_id"],
                                   self.data_dir, self.settings.get("capture_seconds", 420), REPLAY_SPEED,
-                                  stop, self.log.info)
+                                  stop, self.log.info, self.patch.get("max_position_gap", 12))
         except capture.CaptureError as e:
             path = None
             item["attempts"] += 1

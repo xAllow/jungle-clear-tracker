@@ -215,7 +215,7 @@ def _positions(players: list[dict[str, Any]], order: list[str], camera: dict[str
 
 
 def replay(api: GameApi, lol_dir: Path, game_id: int, riot_id: str, match_id: str, out_dir: Path,
-           max_seconds: float, speed: float, stop: Stop, log: Log) -> Path | None:
+           max_seconds: float, speed: float, stop: Stop, log: Log, max_position_gap: float = 12.0) -> Path | None:
     """Open the replay, play it from 0:00 at `speed` up to `max_seconds` and record everyone's positions.
 
     Returns None (and deletes the partial file) if `stop()` interrupts it."""
@@ -250,6 +250,7 @@ def replay(api: GameApi, lol_dir: Path, game_id: int, riot_id: str, match_id: st
     log(f"Recording replay positions of game {game_id} (x{speed:g}, up to {max_seconds:.0f} s).")
 
     previous, silent_since, aborted = None, None, False
+    pos_times: list[float] = []
     while True:
         if stop():
             aborted = True
@@ -275,6 +276,7 @@ def replay(api: GameApi, lol_dir: Path, game_id: int, riot_id: str, match_id: st
             previous = row
         if camera and listing:
             _write(f, {"type": "pos", "t": row["t"], "p": _positions(listing, order, camera, width, height)})
+            pos_times.append(row["t"])
         if row["t"] >= max_seconds or playback.get("time", 0.0) >= length - 1:
             break
     api.post("/replay/playback", {"paused": True})
@@ -284,6 +286,14 @@ def replay(api: GameApi, lol_dir: Path, game_id: int, riot_id: str, match_id: st
         # A partial capture is useless for the analysis: drop it so the whole game is retried later.
         path.unlink(missing_ok=True)
         return None
+    # If the game stops drawing (e.g. a minimized replay window), positions go missing mid-clear and camps
+    # can't be named: better record it again.
+    limit = min(max_seconds, 300.0)
+    marks = [0.0] + [t for t in pos_times if t <= limit] + [limit]
+    gap = max(b - a for a, b in zip(marks, marks[1:]))
+    if gap > max_position_gap:
+        path.unlink(missing_ok=True)
+        raise CaptureError(f"positions missing for {gap:.0f} s in a row (was the replay window minimized?)")
     return path
 
 

@@ -115,9 +115,11 @@ def gold_jumps(samples: list[dict[str, Any]], p: dict[str, Any]) -> list[tuple[f
         if prev is not None:
             dt = max(s["t"] - prev["t"], 0.0)
             extra = s["gold"] - prev["gold"] - p["passive_gold_per_second"] * dt
+            # An item that disappears may be a sale, not a kill. Buying doesn't matter (gold goes down) and
+            # consumables get used up on their own: they don't cancel the kill of that instant.
             # No monster can die before the first camps spawn (1:07): the 500 starting gold arrives as a jump at ~0:00.
-            if (extra >= p["min_gold_jump"] and s["t"] >= p["first_kill_possible_seconds"]
-                    and s.get("items") == prev.get("items")):
+            removed = set(prev.get("items") or []) - set(s.get("items") or []) - set(p.get("consumable_items", []))
+            if extra >= p["min_gold_jump"] and s["t"] >= p["first_kill_possible_seconds"] and not removed:
                 out.append((s["t"], round(extra)))
         prev = s
     # A small extra (+20) can arrive half a second after a big monster kill (blue, gromp, red...): it belongs
@@ -132,11 +134,19 @@ def gold_jumps(samples: list[dict[str, Any]], p: dict[str, Any]) -> list[tuple[f
     return merged
 
 
-def group_kills(kills: list[tuple[float, float]], gap: float) -> list[dict[str, Any]]:
-    """Kills closer than `gap` seconds form one step of the clear (camps done at the same time)."""
+def group_kills(kills: list[tuple[float, float]], gap: float, position: Any = None,
+                p: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Kills closer than `gap` seconds form one step of the clear (camps done at the same time).
+
+    With `position(t)` a change of place also splits them: kills far apart are different camps."""
+    p = p or {}
     groups: list[dict[str, Any]] = []
     for t, n in kills:
-        if groups and t - groups[-1]["end"] <= gap:
+        moved = False
+        if groups and position and t - groups[-1]["end"] > p.get("location_change_gap", 4):
+            a, b = position(groups[-1]["end"]), position(t)
+            moved = bool(a and b and math.hypot(a[0] - b[0], a[1] - b[1]) > p.get("location_change_distance", 1300))
+        if groups and t - groups[-1]["end"] <= gap and not moved:
             g = groups[-1]
             g["end"] = t
             g["amount"] += n
@@ -149,16 +159,54 @@ def group_kills(kills: list[tuple[float, float]], gap: float) -> list[dict[str, 
     return groups
 
 
-def incidents(samples: list[dict[str, Any]], events: list[dict[str, Any]], header: dict[str, Any]) -> list[dict]:
+def merge_repeated(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A camp split into two consecutive groups (small wolves and, 12 s later, the big one) is one camp."""
+    out: list[dict[str, Any]] = []
+    for g in groups:
+        name = g.get("camp") or ""
+        prev = out[-1] if out else None
+        if prev and name and name == prev.get("camp") and " / " not in name and not g.get("scuttle"):
+            prev["end"] = g["end"]
+            prev["amount"] += g["amount"]
+            prev["jumps"] = prev["jumps"] + g["jumps"]
+            prev["times"] = prev.get("times", []) + g.get("times", [])
+            continue
+        out.append(g)
+    for prev, cur in zip(out, out[1:]):
+        cur["since_previous"] = round(cur["end"] - prev["end"], 1)
+    return out
+
+
+def resolve_ambiguous(clear: list[dict[str, Any]]) -> None:
+    """"Blue / Gromp" is blue if gromp shows up in another step of the clear: each own camp is done once."""
+    sure = {n for g in clear for n in (g.get("camp") or "").split(" + ") if n and " / " not in (g.get("camp") or "")}
+    for g in clear:
+        name = g.get("camp") or ""
+        if " / " in name:
+            free = [o for o in name.split(" / ") if o not in sure]
+            if len(free) == 1:
+                g["camp"] = free[0]
+                sure.add(free[0])
+
+
+def incidents(samples: list[dict[str, Any]], events: list[dict[str, Any]], header: dict[str, Any],
+              p: dict[str, Any] | None = None) -> list[dict]:
     """What cuts a clear: deaths, fights (your kills/assists) and recalls (a new item after 1:30)."""
     me = (header.get("riot_id") or "").split("#")[0]
     out = []
     for prev, s in zip(samples, samples[1:]):
         if s.get("dead") and not prev.get("dead"):
             out.append({"t": s["t"], "kind": "death"})
-        # Only a new item counts: using up the last potion also changes the inventory.
-        if s["t"] > 90 and set(s.get("items") or []) - set(prev.get("items") or []):
-            out.append({"t": s["t"], "kind": "back"})
+        # Only a new item counts (using up the last potion also changes the inventory), and only if it cost
+        # gold: the game also gives items for free, like the elixirs that appear mid-clear since 16.21.
+        new = set(s.get("items") or []) - set(prev.get("items") or [])
+        if s["t"] > 90 and new:
+            if s.get("gold") is not None and prev.get("gold") is not None:
+                bought = prev["gold"] - s["gold"] >= (p or {}).get("min_purchase_gold", 20)
+            else:  # replay, no gold: by the kind of item only
+                bought = bool(new - set((p or {}).get("consumable_items", [])))
+            if bought:
+                out.append({"t": s["t"], "kind": "back"})
     for e in events:
         if e.get("EventName") != "ChampionKill":
             continue
@@ -482,7 +530,7 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
     samples = capture["samples"]
     cs_up = increases(samples, "cs")
     cs_step = min((n for _, n in cs_up), default=None)
-    incid = incidents(samples, capture["events"], capture["header"])
+    incid = incidents(samples, capture["events"], capture["header"], p)
     # Gold from your own kills/assists is not jungle gold.
     fights = [i["t"] for i in incid if i["kind"] == "fight"]
     gold = [(t, n) for t, n in gold_jumps(samples, p) if not any(0 <= t - f <= 2 for f in fights)]
@@ -495,9 +543,16 @@ def analyze(capture: dict[str, Any], p: dict[str, Any]) -> dict[str, Any]:
     else:
         source, kills = "milestones", []  # replay without a live capture: only level/CS milestones
 
-    groups = split_scuttles(group_kills(kills, p["group_gap_seconds"]), capture, p)
+    riot_id = capture["header"].get("riot_id")
+    position = None
+    if capture["positions"] and riot_id in capture["order"]:
+        index = capture["order"].index(riot_id)
+        position = lambda t: position_at(capture["positions"], index, t)  # noqa: E731
+    groups = split_scuttles(group_kills(kills, p["group_gap_seconds"], position, p), capture, p)
     name_camps(groups, capture, p)
+    groups = merge_repeated(groups)
     clear, reason, t_end = first_clear([g for g in groups if not g.get("scuttle")], incid, p["clear_end_gap_seconds"])
+    resolve_ambiguous(clear)
     clear, cut = cut_when_complete(clear, p["own_camps"])
     if cut:
         reason, t_end = "complete", clear[-1]["end"]
